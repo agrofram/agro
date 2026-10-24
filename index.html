@@ -596,7 +596,7 @@
         <h3 class="text-sm font-bold text-gray-900 flex items-center gap-2">
           <i data-lucide="star" class="w-4 h-4 text-amber-500 fill-amber-500"></i> Tulis Ulasan Produk
         </h3>
-        <input type="text" id="reviewAuthor" placeholder="Nama Anda (Contoh: Izar - Bojonegoro)" class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-leaf-600" />
+        <input type="text" id="reviewAuthor" placeholder="Nama Anda (Contoh: Pak Budi - Kepohbaru)" class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-leaf-600" />
         
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <select id="reviewProduct" class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs font-semibold">
@@ -1028,7 +1028,6 @@
     renderProducts(filtered);
   }
 
-  // --- KERANJANG & CHECKOUT DENGAN ALAMAT ---
   function toggleCartDrawer(open) {
     const drawer = document.getElementById("cartDrawer");
     if (!drawer) return;
@@ -1193,7 +1192,6 @@ Mohon diproses, terima kasih!`;
     triggerNotification(`Pesanan ${orderId} berhasil dibuat & alamat disimpan!`, 'success');
   }
 
-  // --- NOTA PEMBELIAN / STRUK ---
   function showReceiptModal(orderId) {
     const order = orders.find(o => o.id.toUpperCase() === orderId.toUpperCase());
     if (!order) {
@@ -1254,7 +1252,6 @@ Mohon diproses, terima kasih!`;
     receiptModal.classList.remove("hidden");
   }
 
-  // --- TRACK ORDER & LEAFLET MAP OTOMATIS (KEPOHBARU -> KOTA TUJUAN PEMBELI) ---
   async function trackOrder() {
     const inputId = document.getElementById("trackOrderIdInput").value.trim().toUpperCase();
     const resultDiv = document.getElementById("trackingResult");
@@ -1315,25 +1312,19 @@ Mohon diproses, terima kasih!`;
     resultDiv.classList.add("animate-scaleUp");
     triggerNotification(`Pesanan ${foundOrder.id} berhasil ditemukan!`, "success");
 
-    // === PROSES PETA & PENCARIAN TITIK TUJUAN OTOMATIS ===
     setTimeout(async () => {
       if (mapInstance) {
         mapInstance.remove();
       }
 
-      // 1. Titik Awal Tetap: Toko Agrofarm Moro Tani di Kepohbaru, Bojonegoro
       const originStore = [-7.2343, 112.0289];
+      let buyerLocation = [-7.1507, 111.8893];
 
-      // 2. Default Titik Tujuan (jika alamat tidak spesifik)
-      let buyerLocation = [-7.1507, 111.8893]; // Bojonegoro Kota
-
-      // Cek apakah alamat pembeli mengandung koordinat manual atau nama kota/kecamatan
       if (foundOrder.address) {
         const coordMatch = foundOrder.address.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
         if (coordMatch) {
           buyerLocation = [parseFloat(coordMatch[1]), parseFloat(coordMatch[2])];
         } else {
-          // Cari koordinat otomatis berdasarkan teks alamat (misal: "Surabaya", "Madiun", dll)
           try {
             const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(foundOrder.address)}`);
             const data = await response.json();
@@ -1346,20 +1337,17 @@ Mohon diproses, terima kasih!`;
         }
       }
 
-      // 3. Posisi Kurir berada di tengah-tengah antara Kepohbaru dan Kota Tujuan
       const courierPosition = [
         (originStore[0] + buyerLocation[0]) / 2,
         (originStore[1] + buyerLocation[1]) / 2
       ];
 
-      // Inisialisasi Peta Leaflet
       mapInstance = L.map('map').setView(courierPosition, 8);
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap'
       }).addTo(mapInstance);
 
-      // Desain Custom Marker Pins (Shopee Style)
       const storeIcon = L.divIcon({
         html: '<div style="background-color:#15803D; color:white; padding:5px 9px; border-radius:10px; font-weight:bold; font-size:10px; border:2px solid white; box-shadow:0 3px 6px rgba(0,0,0,0.3);">🏪 Kepohbaru</div>',
         className: 'custom-store-marker',
@@ -1378,7 +1366,6 @@ Mohon diproses, terima kasih!`;
         iconSize: [95, 28]
       });
 
-      // Pasang Marker ke Peta[cite: 6]
       L.marker(originStore, { icon: storeIcon }).addTo(mapInstance)
         .bindPopup(`<b>Toko Agrofarm (Kepohbaru)</b><br/>Titik Asal Pengiriman`);
 
@@ -1391,7 +1378,6 @@ Mohon diproses, terima kasih!`;
           .openPopup();
       }
 
-      // Garis Rute Pengiriman Putus-Putus Hijau[cite: 6]
       const routeLine = L.polyline([originStore, buyerLocation], {
         color: '#16A34A',
         weight: 4,
@@ -1399,7 +1385,6 @@ Mohon diproses, terima kasih!`;
         dashArray: '6, 8'
       }).addTo(mapInstance);
 
-      // Kamera peta otomatis menyesuaikan jarak titik Kepohbaru ke Kota Pembeli (Surabaya/Madiun/dll)[cite: 6]
       mapInstance.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
 
     }, 300);
@@ -1440,7 +1425,6 @@ Mohon diproses, terima kasih!`;
     triggerNotification(`Pesanan ${order.id} selesai! Terima kasih.`, "success");
   }
 
-  // --- RATING & ULASAN PETANI ---
   function submitReview() {
     const author = document.getElementById("reviewAuthor").value.trim();
     const product = document.getElementById("reviewProduct").value;
@@ -1470,6 +1454,7 @@ Mohon diproses, terima kasih!`;
     triggerNotification("Ulasan berhasil dikirim!", "success");
   }
 
+  // --- RENDER ULASAN PETANI (DENGAN TOMBOL HAPUS) ---
   function renderReviews() {
     const container = document.getElementById("reviewsListContainer");
     if (!container) return;
@@ -1480,25 +1465,42 @@ Mohon diproses, terima kasih!`;
       return;
     }
 
-    reviews.forEach(r => {
+    reviews.forEach((r, index) => {
       const stars = "⭐".repeat(r.rating);
       container.innerHTML += `
-        <div class="bg-white p-4 rounded-2xl border border-cream-200 shadow-sm space-y-2 animate-fadeUp">
+        <div class="bg-white p-4 rounded-2xl border border-cream-200 shadow-sm space-y-2 animate-fadeUp relative">
           <div class="flex justify-between items-start">
             <div>
               <h4 class="font-bold text-xs text-gray-900">${r.author}</h4>
               <span class="text-[10px] font-semibold text-leaf-700 bg-leaf-50 px-2 py-0.5 rounded-full inline-block mt-0.5">${r.product}</span>
             </div>
-            <span class="text-xs text-amber-500">${stars}</span>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-amber-500">${stars}</span>
+              <!-- Tombol Hapus Ulasan -->
+              <button onclick="deleteReview(${index})" class="text-red-500 hover:text-red-700 p-1 transition-colors" title="Hapus Ulasan">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
           </div>
           <p class="text-xs text-gray-600 leading-relaxed">"${r.text}"</p>
           <span class="text-[9px] text-gray-400 block text-right">${r.date}</span>
         </div>
       `;
     });
+
+    if (window.lucide) lucide.createIcons();
   }
 
-  // --- DOSE CALCULATOR ---
+  // --- FUNGSI MENGHAPUS ULASAN ---
+  function deleteReview(index) {
+    if (confirm("Apakah Anda yakin ingin menghapus ulasan pelanggan ini?")) {
+      reviews.splice(index, 1);
+      localStorage.setItem('agro_reviews', JSON.stringify(reviews));
+      renderReviews();
+      triggerNotification("Ulasan pelanggan berhasil dihapus.", "info");
+    }
+  }
+
   function calculateDose() {
     const select = document.getElementById("calcProduct");
     if (!select) return;
@@ -1545,7 +1547,6 @@ Mohon diproses, terima kasih!`;
     calculateDose();
   }
 
-  // --- AUTHENTICATION & MODAL ---
   function openAuthModal(mode = 'login') {
     document.getElementById("authModal").classList.remove("hidden");
     switchAuthTab(mode);
@@ -1634,7 +1635,6 @@ Mohon diproses, terima kasih!`;
     }
   }
 
-  // --- ADMIN PANEL ---
   function renderAdminTables() {
     const orderBody = document.getElementById("adminOrdersTable");
     if (orderBody) {
