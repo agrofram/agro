@@ -121,6 +121,32 @@
     ::-webkit-scrollbar-thumb { background: #16A34A; border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #15803D; }
   </style>
+
+  <!-- Firebase SDK & Config (Sudah Diisi Kunci Asli) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCgbuzaIQWIq8gZ9nJMrQZ3UAYBCvETGK8",
+      authDomain: "agrofarm-dc823.firebaseapp.com",
+      databaseURL: "https://agrofarm-dc823-default-rtdb.firebaseio.com",
+      projectId: "agrofarm-dc823",
+      storageBucket: "agrofarm-dc823.firebasestorage.app",
+      messagingSenderId: "701299790697",
+      appId: "1:701299790697:web:b1df9878e58f94249b63f8",
+      measurementId: "G-T3Z04RM9QD"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    window.db = db;
+    window.dbRef = ref;
+    window.dbSet = set;
+    window.dbOnValue = onValue;
+    window.dbRemove = remove;
+  </script>
 </head>
 <body class="antialiased selection:bg-leaf-500 selection:text-white">
 
@@ -952,6 +978,7 @@
     updateCartUI();
     updateAuthUI();
     renderReviews();
+    setTimeout(initRealtimeOrders, 1000); // Sinkronisasi Firebase
   });
 
   function saveOrdersToStorage() {
@@ -1111,6 +1138,7 @@
     });
   }
 
+  // Fungsi Checkout tersambung ke Firebase Realtime Database
   function checkoutOrderViaWA() {
     if (cart.length === 0) {
       triggerNotification("Keranjang belanja Anda kosong.", 'warning');
@@ -1140,16 +1168,14 @@
     const today = new Date();
     const estArrival = new Date(today);
     estArrival.setDate(today.getDate() + 3);
-    const estDateFormatted = estArrival.toISOString().split('T')[0];
-    const orderDateFormatted = today.toISOString().split('T')[0];
 
     const newOrder = {
       id: orderId,
       user: name,
       phone: phone,
       address: address,
-      date: orderDateFormatted,
-      estDate: estDateFormatted,
+      date: today.toISOString().split('T')[0],
+      estDate: estArrival.toISOString().split('T')[0],
       items: cart.map(c => `${c.name} (x${c.qty})`).join(", "),
       rawItems: [...cart],
       total: totalAmount,
@@ -1158,17 +1184,13 @@
       position: "Kurir dalam perjalanan dari Kepohbaru"
     };
 
-    orders.unshift(newOrder);
-    saveOrdersToStorage();
+    // Simpan ke Firebase Cloud Realtime Database agar masuk ke Admin secara real-time
+    const orderRef = window.dbRef(window.db, 'orders/' + orderId);
+    window.dbSet(orderRef, newOrder).then(() => {
+      document.getElementById("modalOrderId").innerText = orderId;
+      document.getElementById("orderSuccessModal").classList.remove("hidden");
 
-    const modalOrderIdEl = document.getElementById("modalOrderId");
-    const orderSuccessModalEl = document.getElementById("orderSuccessModal");
-    if (modalOrderIdEl && orderSuccessModalEl) {
-      modalOrderIdEl.innerText = orderId;
-      orderSuccessModalEl.classList.remove("hidden");
-    }
-
-    const message = `Halo Agrofarm, saya mau checkout pesanan:
+      const message = `Halo Agrofarm, saya mau checkout pesanan:
   
 *ID Pesanan:* ${orderId}
 *Nama Pemesan:* ${name}
@@ -1183,13 +1205,33 @@ ${itemsSummary}
 
 Mohon diproses, terima kasih!`;
 
-    const encodedMessage = encodeURIComponent(message);
-    window.open(`https://wa.me/6287744494131?text=${encodedMessage}`, '_blank');
+      window.open(`https://wa.me/6287744494131?text=${encodeURIComponent(message)}`, '_blank');
 
-    cart = [];
-    updateCartUI();
-    toggleCartDrawer(false);
-    triggerNotification(`Pesanan ${orderId} berhasil dibuat & alamat disimpan!`, 'success');
+      cart = [];
+      updateCartUI();
+      toggleCartDrawer(false);
+      triggerNotification(`Pesanan ${orderId} berhasil dikirim ke server!`, 'success');
+    }).catch((error) => {
+      console.error("Gagal menyimpan:", error);
+      triggerNotification("Gagal mengirim pesanan ke server.", "error");
+    });
+  }
+
+  // Fungsi sinkronisasi pesanan secara real-time untuk Admin
+  function initRealtimeOrders() {
+    if (!window.db) return;
+    const ordersRef = window.dbRef(window.db, 'orders');
+    window.dbOnValue(ordersRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        orders = Object.values(data);
+      } else {
+        orders = [];
+      }
+      if (typeof renderAdminTables === 'function' && currentUser && currentUser.role === 'admin') {
+        renderAdminTables();
+      }
+    });
   }
 
   function showReceiptModal(orderId) {
@@ -1415,9 +1457,6 @@ Mohon diproses, terima kasih!`;
     const statusBadge = document.getElementById("resTrackStatus");
     statusBadge.className = "px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800";
 
-    document.getElementById("stepShipping").classList.remove("opacity-40");
-    document.getElementById("stepDelivered").classList.remove("opacity-40");
-
     if (typeof renderAdminTables === 'function') {
       renderAdminTables();
     }
@@ -1454,7 +1493,6 @@ Mohon diproses, terima kasih!`;
     triggerNotification("Ulasan berhasil dikirim!", "success");
   }
 
-  // --- RENDER ULASAN PETANI (DENGAN TOMBOL HAPUS) ---
   function renderReviews() {
     const container = document.getElementById("reviewsListContainer");
     if (!container) return;
@@ -1476,7 +1514,6 @@ Mohon diproses, terima kasih!`;
             </div>
             <div class="flex items-center gap-2">
               <span class="text-xs text-amber-500">${stars}</span>
-              <!-- Tombol Hapus Ulasan -->
               <button onclick="deleteReview(${index})" class="text-red-500 hover:text-red-700 p-1 transition-colors" title="Hapus Ulasan">
                 <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
               </button>
@@ -1491,7 +1528,6 @@ Mohon diproses, terima kasih!`;
     if (window.lucide) lucide.createIcons();
   }
 
-  // --- FUNGSI MENGHAPUS ULASAN ---
   function deleteReview(index) {
     if (confirm("Apakah Anda yakin ingin menghapus ulasan pelanggan ini?")) {
       reviews.splice(index, 1);
@@ -1814,6 +1850,6 @@ Mohon diproses, terima kasih!`;
     document.getElementById("detailImg").src = prod.img;
     document.getElementById("productDetailModal").classList.remove("hidden");
   }
-</script>
+  </script>
 </body>
 </html>
